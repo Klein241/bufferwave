@@ -1,0 +1,16 @@
+{
+  "name": "bufferwave",
+  "version": "1.0.0",
+  "description": "Batterie de connexion internet - Store and Forward Networking",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo Build OK"
+  },
+  "dependencies": {
+    "@netlify/functions": "^2.0.0",
+    "@supabase/supabase-js": "^2.0.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}

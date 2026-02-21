@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BufferWave</title>
+  <link rel="manifest" href="/manifest.json"/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0a0f1e;--accent:#00f5c4;--accent2:#0084ff;--danger:#ff4060;--text:#e0eeff;--muted:#4a6080;--border:rgba(0,245,196,0.15)}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+    body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,245,196,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,196,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}
+    .container{position:relative;z-index:1;width:100%;max-width:480px;padding:24px 16px 40px}
+    header{text-align:center;margin-bottom:28px}
+    .logo{font-family:'Orbitron',monospace;font-weight:900;font-size:2rem;letter-spacing:4px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .tagline{color:var(--muted);font-size:.75rem;letter-spacing:2px;margin-top:4px;text-transform:uppercase}
+    .auth-box{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px}
+    .auth-box input{width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:.85rem;margin-bottom:10px;outline:none}
+    .auth-box input:focus{border-color:var(--accent)}
+    .btn-auth{width:100%;padding:12px;background:linear-gradient(135deg,rgba(0,245,196,0.2),rgba(0,132,255,0.2));border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-family:'Orbitron',monospace;font-size:.75rem;letter-spacing:2px;cursor:pointer;transition:all .3s}
+    .btn-auth:hover{background:linear-gradient(135deg,rgba(0,245,196,0.4),rgba(0,132,255,0.4))}
+    .network-bar{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:.7rem}
+    .net-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:8px}
+    .net-dot.offline{background:var(--danger)}
+    .net-dot.online{animation:pulse 1.5s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .battery-section{display:flex;flex-direction:column;align-items:center;margin-bottom:28px}
+    .battery-wrap{position:relative;width:160px;height:290px}
+    .battery-tip{position:absolute;top:0;left:50%;transform:translateX(-50%);width:46px;height:20px;border:2px solid var(--accent);border-bottom:none;border-radius:6px 6px 0 0;background:rgba(0,245,196,0.05)}
+    .battery-body{position:absolute;bottom:0;left:0;right:0;height:268px;border:2px solid var(--accent);border-radius:10px;overflow:hidden;background:rgba(0,245,196,0.02);box-shadow:0 0 20px rgba(0,245,196,0.1)}
+    .battery-fill{position:absolute;bottom:0;left:0;right:0;height:0%;background:linear-gradient(180deg,var(--accent2),var(--accent));transition:height .8s cubic-bezier(.4,0,.2,1)}
+    .battery-percent{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;color:white;text-shadow:0 0 20px rgba(0,245,196,0.8);z-index:2}
+    .battery-label{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:.6rem;color:rgba(255,255,255,0.5);letter-spacing:2px;white-space:nowrap;z-index:2}
+    .bubble{position:absolute;width:6px;height:6px;background:rgba(255,255,255,0.3);border-radius:50%;animation:rise 3s ease-in infinite;display:none}
+    .mode-charge .bubble{display:block}
+    @keyframes rise{0%{bottom:5%;opacity:1}100%{bottom:95%;opacity:0}}
+    .bubble:nth-child(1){left:20%;animation-delay:0s}
+    .bubble:nth-child(2){left:50%;animation-delay:.8s}
+    .bubble:nth-child(3){left:75%;animation-delay:1.6s}
+    .battery-stats{display:flex;gap:20px;margin-top:16px;text-align:center}
+    .stat-val{font-family:'Orbitron',monospace;font-size:1rem;color:var(--accent)}
+    .stat-lbl{font-size:.6rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+    .mode-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:20px;font-size:.7rem;letter-spacing:2px;text-transform:uppercase;margin-top:12px;transition:all .4s}
+    .mode-badge.standby{background:rgba(74,96,128,0.2);border:1px solid var(--muted);color:var(--muted)}
+    .mode-badge.charging{background:rgba(0,132,255,0.15);border:1px solid var(--accent2);color:var(--accent2);box-shadow:0 0 12px rgba(0,132,255,0.2)}
+    .mode-badge.discharging{background:rgba(0,245,196,0.15);border:1px solid var(--accent);color:var(--accent);box-shadow:0 0 12px rgba(0,245,196,0.2)}
+    .mode-dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+    .mode-badge.charging .mode-dot,.mode-badge.discharging .mode-dot{animation:pulse 1.2s infinite}
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+    .btn{padding:18px 12px;border:none;border-radius:12px;font-family:'Orbitron',monospace;font-size:.65rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .3s}
+    .btn-charge{background:rgba(0,132,255,0.15);border:1px solid rgba(0,132,255,0.5);color:var(--accent2)}
+    .btn-charge:hover,.btn-charge.active{background:rgba(0,132,255,0.35);box-shadow:0 0 20px rgba(0,132,255,0.3);transform:translateY(-2px)}
+    .btn-discharge{background:rgba(0,245,196,0.15);border:1px solid rgba(0,245,196,0.5);color:var(--accent)}
+    .btn-discharge:hover,.btn-discharge.active{background:rgba(0,245,196,0.35);box-shadow:0 0 20px rgba(0,245,196,0.3);transform:translateY(-2px)}
+    .btn-icon{display:block;font-size:1.4rem;margin-bottom:6px}
+    .btn-hotspot{width:100%;padding:14px;background:rgba(255,64,96,0.1);border:1px solid rgba(255,64,96,0.4);color:var(--danger);border-radius:12px;font-family:'Orbitron',monospace;font-size:.65rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .3s;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:10px}
+    .btn-hotspot:hover,.btn-hotspot.active{background:rgba(255,64,96,0.3);box-shadow:0 0 20px rgba(255,64,96,0.2)}
+    .log-section{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .log-header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:.7rem;color:var(--muted);letter-spacing:2px}
+    .log-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+    .log-body{padding:12px 14px;height:130px;overflow-y:auto;display:flex;flex-direction:column-reverse;gap:4px}
+    .log-line{font-size:.68rem;line-height:1.5}
+    .log-line.info{color:var(--accent2)}
+    .log-line.success{color:var(--accent)}
+    .log-line.warn{color:#ffaa00}
+    .log-line.error{color:var(--danger)}
+    .hidden{display:none!important}
+    .user-bar{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:.7rem}
+    .btn-logout{background:none;border:1px solid var(--muted);color:var(--muted);border-radius:6px;padding:4px 10px;font-family:'Share Tech Mono',monospace;font-size:.65rem;cursor:pointer}
+    .btn-logout:hover{border-color:var(--danger);color:var(--danger)}
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">BUFFERWAVE</div>
+    <div class="tagline">Batterie de Connexion Internet</div>
+  </header>
+
+  <!-- AUTH -->
+  <div id="authBox" class="auth-box">
+    <input type="email" id="emailInput" placeholder="Email"/>
+    <input type="password" id="passInput" placeholder="Mot de passe"/>
+    <button class="btn-auth" onclick="login()">CONNEXION / INSCRIPTION</button>
+  </div>
+
+  <!-- APP (cachée jusqu'à connexion) -->
+  <div id="appBox" class="hidden">
+    <div class="user-bar">
+      <span id="userEmail">—</span>
+      <button class="btn-logout" onclick="logout()">DÉCONNEXION</button>
+    </div>
+
+    <div class="network-bar" id="networkBar">
+      <div><span class="net-dot online" id="netDot"></span><span id="netLabel">WiFi connecté</span></div>
+      <span id="netSpeed">— MB/s</span>
+    </div>
+
+    <div class="battery-section" id="batterySection">
+      <div class="battery-wrap">
+        <div class="battery-tip"></div>
+        <div class="battery-body" id="batteryBody">
+          <div class="battery-fill" id="batteryFill"></div>
+          <div class="bubble"></div><div class="bubble"></div><div class="bubble"></div>
+          <div class="battery-percent" id="batteryPercent">0%</div>
+          <div class="battery-label" id="batteryLabel">BUFFER VIDE</div>
+        </div>
+      </div>
+      <div class="battery-stats">
+        <div class="stat"><div class="stat-val" id="statUsed">0 MB</div><div class="stat-lbl">Stocké</div></div>
+        <div class="stat"><div class="stat-val" id="statTotal">100 GB</div><div class="stat-lbl">Capacité</div></div>
+        <div class="stat"><div class="stat-val" id="statTime">0h</div><div class="stat-lbl">Autonomie</div></div>
+      </div>
+      <div class="mode-badge standby" id="modeBadge">
+        <div class="mode-dot"></div><span id="modeLabel">En attente</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-charge" id="btnCharge" onclick="startCharge()">
+        <span class="btn-icon">⚡</span>CHARGER
+      </button>
+      <button class="btn btn-discharge" id="btnDischarge" onclick="startDischarge()">
+        <span class="btn-icon">📡</span>DÉCHARGER
+      </button>
+    </div>
+
+    <button class="btn-hotspot" id="btnHotspot" onclick="toggleHotspot()">
+      <span>📶</span><span id="hotspotLabel">PARTAGER LA CONNEXION</span>
+    </button>
+
+    <div class="log-section">
+      <div class="log-header"><div class="log-dot"></div>JOURNAL SYSTÈME</div>
+      <div class="log-body" id="logBody">
+        <div class="log-line info">[ BUFFERWAVE v1.0 ] — Système initialisé</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+const supabase = createClient(
+  'https://udmmtyczhxqscgigrden.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkbW10eWN6aHhxc2NnaWdyZGVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2NzY5ODgsImV4cCI6MjA4NzI1Mjk4OH0.VrLhrYQgy31EsstVXLeeVVVYP5iMvsYG5Sel0hp6dgI'
+)
+
+const STATE = {
+  mode:'standby', bufferMB:0, totalMB:102400,
+  hotspot:false, online:navigator.onLine,
+  chargeInterval:null, dischargeInterval:null,
+  userId:null, deviceId:null
+}
+
+function log(msg,type='info'){
+  const body=document.getElementById('logBody')
+  const ts=new Date().toLocaleTimeString('fr-FR')
+  const line=document.createElement('div')
+  line.className=`log-line ${type}`
+  line.textContent=`[${ts}] ${msg}`
+  body.prepend(line)
+  while(body.children.length>50)body.removeChild(body.lastChild)
+}
+
+function fmt(mb){return mb>=1024?(mb/1024).toFixed(1)+' GB':Math.round(mb)+' MB'}
+
+function updateUI(){
+  const pct=Math.round((STATE.bufferMB/STATE.totalMB)*100)
+  document.getElementById('batteryFill').style.height=pct+'%'
+  document.getElementById('batteryPercent').textContent=pct+'%'
+  document.getElementById('statUsed').textContent=fmt(STATE.bufferMB)
+  document.getElementById('statTime').textContent=Math.round(STATE.bufferMB/150)+'h'
+  const lbl=pct===0?'BUFFER VIDE':pct<30?'FAIBLE':pct<70?'MOYEN':pct<100?'ÉLEVÉ':'PLEIN'
+  document.getElementById('batteryLabel').textContent=lbl
+  const badge=document.getElementById('modeBadge')
+  const sec=document.getElementById('batterySection')
+  badge.className='mode-badge'
+  sec.className='battery-section'
+  if(STATE.mode==='charging'){badge.classList.add('charging');document.getElementById('modeLabel').textContent='Phase CHARGE';sec.classList.add('mode-charge')}
+  else if(STATE.mode==='discharging'){badge.classList.add('discharging');document.getElementById('modeLabel').textContent='Phase DÉCHARGE'}
+  else{badge.classList.add('standby');document.getElementById('modeLabel').textContent='En attente'}
+  document.getElementById('btnCharge').classList.toggle('active',STATE.mode==='charging')
+  document.getElementById('btnDischarge').classList.toggle('active',STATE.mode==='discharging')
+}
+
+async function syncSupabase(){
+  if(!STATE.userId||!STATE.deviceId)return
+  await supabase.from('buffer_state').upsert({
+    user_id:STATE.userId, device_id:STATE.deviceId,
+    mode:STATE.mode, buffer_used_mb:STATE.bufferMB,
+    buffer_total_mb:STATE.totalMB,
+    pourcentage:Math.round((STATE.bufferMB/STATE.totalMB)*100),
+    hotspot_active:STATE.hotspot
+  },{onConflict:'device_id'})
+}
+
+window.login=async function(){
+  const email=document.getElementById('emailInput').value
+  const pass=document.getElementById('passInput').value
+  if(!email||!pass){log('Email et mot de passe requis','error');return}
+  let {data,error}=await supabase.auth.signInWithPassword({email,password:pass})
+  if(error){
+    const r=await supabase.auth.signUp({email,password:pass})
+    if(r.error){log('Erreur : '+r.error.message,'error');return}
+    data=r.data
+    log('Compte créé — bienvenue !','success')
+  }
+  await initUser(data.user)
+}
+
+window.logout=async function(){
+  await supabase.auth.signOut()
+  STATE.userId=null;STATE.deviceId=null
+  document.getElementById('authBox').classList.remove('hidden')
+  document.getElementById('appBox').classList.add('hidden')
+  log('Déconnecté','warn')
+}
+
+async function initUser(user){
+  STATE.userId=user.id
+  document.getElementById('userEmail').textContent=user.email
+  document.getElementById('authBox').classList.add('hidden')
+  document.getElementById('appBox').classList.remove('hidden')
+  // Créer ou récupérer l'appareil
+  let {data:dev}=await supabase.from('devices').select('id').eq('user_id',user.id).limit(1)
+  if(dev&&dev.length>0){
+    STATE.deviceId=dev[0].id
+  } else {
+    const {data:newDev}=await supabase.from('devices').insert({user_id:user.id,device_name:navigator.userAgent.includes('Mobile')?'Mobile':'Desktop',device_type:'mobile'}).select('id').single()
+    if(newDev)STATE.deviceId=newDev.id
+  }
+  // Charger l'état existant
+  const {data:bs}=await supabase.from('buffer_state').select('*').eq('device_id',STATE.deviceId).single()
+  if(bs){STATE.bufferMB=bs.buffer_used_mb||0;STATE.mode='standby'}
+  updateUI()
+  log('Connecté — buffer chargé depuis Supabase','success')
+  if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').then(()=>log('Service Worker actif','success'))
+}
+
+window.startCharge=async function(){
+  if(STATE.mode==='charging'){stopAll();log('Charge arrêtée','warn');return}
+  stopAll();STATE.mode='charging'
+  log('⚡ Phase CHARGE démarrée','success')
+  STATE.chargeInterval=setInterval(async()=>{
+    if(STATE.bufferMB>=STATE.totalMB){stopAll();log('✅ Buffer PLEIN — 100 GB accumulés','success');return}
+    const rate=50+Math.random()*150
+    STATE.bufferMB=Math.min(STATE.bufferMB+rate,STATE.totalMB)
+    document.getElementById('netSpeed').textContent=rate.toFixed(0)+' MB/s'
+    updateUI()
+    if(Math.random()<0.1)await syncSupabase()
+  },1000)
+  updateUI()
+  navigator.serviceWorker.controller?.postMessage({type:'SET_MODE',mode:'charging'})
+  await supabase.from('sessions').insert({user_id:STATE.userId,device_id:STATE.deviceId,type:'charge'})
+}
+
+window.startDischarge=async function(){
+  if(STATE.mode==='discharging'){stopAll();log('Décharge arrêtée','warn');return}
+  if(STATE.bufferMB<=0){log('⚠ Buffer vide — chargez d\'abord','error');return}
+  stopAll();STATE.mode='discharging'
+  log('📡 Phase DÉCHARGE activée','success')
+  document.getElementById('netDot').className='net-dot offline'
+  document.getElementById('netLabel').textContent='Hors WiFi — buffer actif'
+  STATE.dischargeInterval=setInterval(async()=>{
+    if(STATE.bufferMB<=0){stopAll();log('⚠ Buffer épuisé','error');return}
+    const usage=20+Math.random()*60
+    STATE.bufferMB=Math.max(0,STATE.bufferMB-usage)
+    document.getElementById('netSpeed').textContent=usage.toFixed(0)+' MB/s'
+    updateUI()
+    if(Math.random()<0.1)await syncSupabase()
+  },1000)
+  updateUI()
+  navigator.serviceWorker.controller?.postMessage({type:'SET_MODE',mode:'discharging'})
+}
+
+function stopAll(){
+  clearInterval(STATE.chargeInterval);clearInterval(STATE.dischargeInterval)
+  STATE.mode='standby';document.getElementById('netSpeed').textContent='— MB/s'
+  document.getElementById('netDot').className='net-dot online'
+  document.getElementById('netLabel').textContent='WiFi connecté'
+  syncSupabase();updateUI()
+  navigator.serviceWorker.controller?.postMessage({type:'SET_MODE',mode:'standby'})
+}
+
+window.toggleHotspot=async function(){
+  STATE.hotspot=!STATE.hotspot
+  const btn=document.getElementById('btnHotspot')
+  const lbl=document.getElementById('hotspotLabel')
+  if(STATE.hotspot){btn.classList.add('active');lbl.textContent='PARTAGE ACTIF — CLIQUER POUR ARRÊTER';log('📶 Hotspot activé — partage du buffer','success')}
+  else{btn.classList.remove('active');lbl.textContent='PARTAGER LA CONNEXION';log('Hotspot désactivé','warn')}
+  await syncSupabase()
+}
+
+window.addEventListener('online',()=>{STATE.online=true;document.getElementById('netDot').className='net-dot online';document.getElementById('netLabel').textContent='WiFi connecté';log('✅ WiFi détecté','success')})
+window.addEventListener('offline',()=>{STATE.online=false;if(STATE.mode==='charging'){stopAll();log('WiFi perdu — charge interrompue','error')}})
+
+// Vérifier session existante
+supabase.auth.getSession().then(({data:{session}})=>{if(session)initUser(session.user)})
+</script>
+</body>
+</html>
