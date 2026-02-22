@@ -69,6 +69,10 @@
     .user-bar{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:.7rem}
     .btn-logout{background:none;border:1px solid var(--muted);color:var(--muted);border-radius:6px;padding:4px 10px;font-family:'Share Tech Mono',monospace;font-size:.65rem;cursor:pointer}
     .btn-logout:hover{border-color:var(--danger);color:var(--danger)}
+    /* Bandeau réseau coopératif */
+    .relay-bar{display:flex;align-items:center;justify-content:space-between;background:rgba(0,245,196,0.05);border:1px solid rgba(0,245,196,0.2);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:.7rem}
+    .relay-info{color:var(--accent);font-size:.65rem}
+    .relay-count{font-family:'Orbitron',monospace;color:var(--accent);font-size:.9rem}
   </style>
 </head>
 <body>
@@ -85,7 +89,7 @@
     <button class="btn-auth" onclick="login()">CONNEXION / INSCRIPTION</button>
   </div>
 
-  <!-- APP (cachée jusqu'à connexion) -->
+  <!-- APP -->
   <div id="appBox" class="hidden">
     <div class="user-bar">
       <span id="userEmail">—</span>
@@ -95,6 +99,12 @@
     <div class="network-bar" id="networkBar">
       <div><span class="net-dot online" id="netDot"></span><span id="netLabel">WiFi connecté</span></div>
       <span id="netSpeed">— MB/s</span>
+    </div>
+
+    <!-- Bandeau réseau coopératif -->
+    <div class="relay-bar" id="relayBar">
+      <div class="relay-info">🌍 Réseau coopératif</div>
+      <div><span class="relay-count" id="relayCount">0</span> <span style="color:var(--muted);font-size:.6rem">nœuds actifs</span></div>
     </div>
 
     <div class="battery-section" id="batterySection">
@@ -133,7 +143,7 @@
     <div class="log-section">
       <div class="log-header"><div class="log-dot"></div>JOURNAL SYSTÈME</div>
       <div class="log-body" id="logBody">
-        <div class="log-line info">[ BUFFERWAVE v1.0 ] — Système initialisé</div>
+        <div class="log-line info">[ BUFFERWAVE v2.0 ] — Système initialisé</div>
       </div>
     </div>
   </div>
@@ -142,162 +152,427 @@
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-const supabase = createClient(
-  'https://udmmtyczhxqscgigrden.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkbW10eWN6aHhxc2NnaWdyZGVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2NzY5ODgsImV4cCI6MjA4NzI1Mjk4OH0.VrLhrYQgy31EsstVXLeeVVVYP5iMvsYG5Sel0hp6dgI'
-)
+// ============================================================
+// CONFIGURATION
+// ============================================================
+const SUPABASE_URL = 'https://udmmtyczhxqscgigrden.supabase.co'
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkbW10eWN6aHhxc2NnaWdyZGVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2NzY5ODgsImV4cCI6MjA4NzI1Mjk4OH0.VrLhrYQgy31EsstVXLeeVVVYP5iMvsYG5Sel0hp6dgI'
+const FLYIO_SERVER = 'https://bufferwave-network.fly.dev'
 
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+
+// ============================================================
+// ÉTAT GLOBAL
+// ============================================================
 const STATE = {
-  mode:'standby', bufferMB:0, totalMB:102400,
-  hotspot:false, online:navigator.onLine,
-  chargeInterval:null, dischargeInterval:null,
-  userId:null, deviceId:null
+  mode: 'standby',
+  bufferMB: 0,
+  totalMB: 102400,
+  hotspot: false,
+  online: navigator.onLine,
+  chargeInterval: null,
+  dischargeInterval: null,
+  heartbeatInterval: null,
+  relayInterval: null,
+  userId: null,
+  deviceId: null,
+  userEmail: null,
+  currentRelay: null,
+  nodesActifs: 0
 }
 
-function log(msg,type='info'){
-  const body=document.getElementById('logBody')
-  const ts=new Date().toLocaleTimeString('fr-FR')
-  const line=document.createElement('div')
-  line.className=`log-line ${type}`
-  line.textContent=`[${ts}] ${msg}`
+// ============================================================
+// JOURNAL
+// ============================================================
+function log(msg, type = 'info') {
+  const body = document.getElementById('logBody')
+  const ts = new Date().toLocaleTimeString('fr-FR')
+  const line = document.createElement('div')
+  line.className = `log-line ${type}`
+  line.textContent = `[${ts}] ${msg}`
   body.prepend(line)
-  while(body.children.length>50)body.removeChild(body.lastChild)
+  while (body.children.length > 50) body.removeChild(body.lastChild)
 }
 
-function fmt(mb){return mb>=1024?(mb/1024).toFixed(1)+' GB':Math.round(mb)+' MB'}
-
-function updateUI(){
-  const pct=Math.round((STATE.bufferMB/STATE.totalMB)*100)
-  document.getElementById('batteryFill').style.height=pct+'%'
-  document.getElementById('batteryPercent').textContent=pct+'%'
-  document.getElementById('statUsed').textContent=fmt(STATE.bufferMB)
-  document.getElementById('statTime').textContent=Math.round(STATE.bufferMB/150)+'h'
-  const lbl=pct===0?'BUFFER VIDE':pct<30?'FAIBLE':pct<70?'MOYEN':pct<100?'ÉLEVÉ':'PLEIN'
-  document.getElementById('batteryLabel').textContent=lbl
-  const badge=document.getElementById('modeBadge')
-  const sec=document.getElementById('batterySection')
-  badge.className='mode-badge'
-  sec.className='battery-section'
-  if(STATE.mode==='charging'){badge.classList.add('charging');document.getElementById('modeLabel').textContent='Phase CHARGE';sec.classList.add('mode-charge')}
-  else if(STATE.mode==='discharging'){badge.classList.add('discharging');document.getElementById('modeLabel').textContent='Phase DÉCHARGE'}
-  else{badge.classList.add('standby');document.getElementById('modeLabel').textContent='En attente'}
-  document.getElementById('btnCharge').classList.toggle('active',STATE.mode==='charging')
-  document.getElementById('btnDischarge').classList.toggle('active',STATE.mode==='discharging')
+function fmt(mb) {
+  return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : Math.round(mb) + ' MB'
 }
 
-async function syncSupabase(){
-  if(!STATE.userId||!STATE.deviceId)return
+// ============================================================
+// MISE À JOUR INTERFACE
+// ============================================================
+function updateUI() {
+  const pct = Math.round((STATE.bufferMB / STATE.totalMB) * 100)
+  document.getElementById('batteryFill').style.height = pct + '%'
+  document.getElementById('batteryPercent').textContent = pct + '%'
+  document.getElementById('statUsed').textContent = fmt(STATE.bufferMB)
+  document.getElementById('statTime').textContent = Math.round(STATE.bufferMB / 150) + 'h'
+  const lbl = pct === 0 ? 'BUFFER VIDE' : pct < 30 ? 'FAIBLE' : pct < 70 ? 'MOYEN' : pct < 100 ? 'ÉLEVÉ' : 'PLEIN'
+  document.getElementById('batteryLabel').textContent = lbl
+  const badge = document.getElementById('modeBadge')
+  const sec = document.getElementById('batterySection')
+  badge.className = 'mode-badge'
+  sec.className = 'battery-section'
+  if (STATE.mode === 'charging') {
+    badge.classList.add('charging')
+    document.getElementById('modeLabel').textContent = 'Phase CHARGE'
+    sec.classList.add('mode-charge')
+  } else if (STATE.mode === 'discharging') {
+    badge.classList.add('discharging')
+    document.getElementById('modeLabel').textContent = 'Phase DÉCHARGE'
+  } else {
+    badge.classList.add('standby')
+    document.getElementById('modeLabel').textContent = 'En attente'
+  }
+  document.getElementById('btnCharge').classList.toggle('active', STATE.mode === 'charging')
+  document.getElementById('btnDischarge').classList.toggle('active', STATE.mode === 'discharging')
+  document.getElementById('relayCount').textContent = STATE.nodesActifs
+}
+
+// ============================================================
+// SERVEUR FLY.IO — Enregistrer comme nœud du réseau
+// ============================================================
+async function registerNode() {
+  if (!STATE.userId) return
+  try {
+    const res = await fetch(`${FLYIO_SERVER}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: STATE.userId,
+        country: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        bandwidthMbps: 10,
+        publicKey: STATE.userId,
+        familyGroup: STATE.userEmail
+      })
+    })
+    const data = await res.json()
+    STATE.nodesActifs = data.nodesActifs || 0
+    updateUI()
+    log(`🌍 Enregistré — ${STATE.nodesActifs} nœud(s) actif(s) dans le réseau`, 'success')
+    if (data.messagesDTNLiberes > 0) {
+      log(`🛸 ${data.messagesDTNLiberes} messages DTN libérés`, 'success')
+    }
+  } catch (e) {
+    log('Serveur réseau hors ligne — mode local', 'warn')
+  }
+}
+
+// ============================================================
+// HEARTBEAT — Maintenir la présence dans le réseau
+// ============================================================
+function startHeartbeat() {
+  if (STATE.heartbeatInterval) clearInterval(STATE.heartbeatInterval)
+  STATE.heartbeatInterval = setInterval(async () => {
+    try {
+      await fetch(`${FLYIO_SERVER}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: STATE.userId })
+      })
+    } catch (e) {}
+  }, 15000)
+}
+
+// ============================================================
+// SURVEILLER LES NŒUDS ACTIFS
+// ============================================================
+function startRelayMonitor() {
+  if (STATE.relayInterval) clearInterval(STATE.relayInterval)
+  STATE.relayInterval = setInterval(async () => {
+    try {
+      const res = await fetch(`${FLYIO_SERVER}/nodes`)
+      const data = await res.json()
+      const avant = STATE.nodesActifs
+      STATE.nodesActifs = data.total || 0
+      if (STATE.nodesActifs !== avant) updateUI()
+    } catch (e) {}
+  }, 10000)
+}
+
+// ============================================================
+// CONNEXION AU RÉSEAU COOPÉRATIF (pour Jean en forêt)
+// ============================================================
+async function connectToCooperativeNetwork() {
+  try {
+    log('🔍 Recherche d\'un nœud disponible...', 'info')
+    const res = await fetch(`${FLYIO_SERVER}/connect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: STATE.userId,
+        userProfile: {
+          country: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          familyGroup: STATE.userEmail
+        }
+      })
+    })
+    const data = await res.json()
+
+    if (data.success && data.mode === 'cooperative_relay') {
+      STATE.currentRelay = data.relay
+      log(`✅ Connecté via nœud : ${data.relay.country}`, 'success')
+      log(`📡 Bande passante disponible : ${data.relay.bandwidthMbps} Mbps`, 'info')
+      document.getElementById('netLabel').textContent = `Réseau coopératif — via ${data.relay.country}`
+      document.getElementById('netDot').className = 'net-dot online'
+      return true
+    } else {
+      // Mode DTN — aucun nœud disponible
+      log('🛸 Mode DTN activé — Jean-Paul = Curiosity sur Mars', 'warn')
+      log('💾 Messages stockés jusqu\'à la prochaine fenêtre', 'warn')
+      document.getElementById('netLabel').textContent = 'Mode DTN — en attente de signal'
+      document.getElementById('netDot').className = 'net-dot offline'
+      return false
+    }
+  } catch (e) {
+    log('🛸 Isolation totale — Mode DTN local activé', 'warn')
+    return false
+  }
+}
+
+// ============================================================
+// SUPABASE SYNC
+// ============================================================
+async function syncSupabase() {
+  if (!STATE.userId || !STATE.deviceId) return
   await supabase.from('buffer_state').upsert({
-    user_id:STATE.userId, device_id:STATE.deviceId,
-    mode:STATE.mode, buffer_used_mb:STATE.bufferMB,
-    buffer_total_mb:STATE.totalMB,
-    pourcentage:Math.round((STATE.bufferMB/STATE.totalMB)*100),
-    hotspot_active:STATE.hotspot
-  },{onConflict:'device_id'})
+    user_id: STATE.userId,
+    device_id: STATE.deviceId,
+    mode: STATE.mode,
+    buffer_used_mb: STATE.bufferMB,
+    buffer_total_mb: STATE.totalMB,
+    pourcentage: Math.round((STATE.bufferMB / STATE.totalMB) * 100),
+    hotspot_active: STATE.hotspot
+  }, { onConflict: 'device_id' })
 }
 
-window.login=async function(){
-  const email=document.getElementById('emailInput').value
-  const pass=document.getElementById('passInput').value
-  if(!email||!pass){log('Email et mot de passe requis','error');return}
-  let {data,error}=await supabase.auth.signInWithPassword({email,password:pass})
-  if(error){
-    const r=await supabase.auth.signUp({email,password:pass})
-    if(r.error){log('Erreur : '+r.error.message,'error');return}
-    data=r.data
-    log('Compte créé — bienvenue !','success')
+// ============================================================
+// AUTHENTIFICATION
+// ============================================================
+window.login = async function () {
+  const email = document.getElementById('emailInput').value
+  const pass = document.getElementById('passInput').value
+  if (!email || !pass) { log('Email et mot de passe requis', 'error'); return }
+  let { data, error } = await supabase.auth.signInWithPassword({ email, password: pass })
+  if (error) {
+    const r = await supabase.auth.signUp({ email, password: pass })
+    if (r.error) { log('Erreur : ' + r.error.message, 'error'); return }
+    data = r.data
+    log('Compte créé — bienvenue !', 'success')
   }
   await initUser(data.user)
 }
 
-window.logout=async function(){
+window.logout = async function () {
   await supabase.auth.signOut()
-  STATE.userId=null;STATE.deviceId=null
+  clearInterval(STATE.heartbeatInterval)
+  clearInterval(STATE.relayInterval)
+  // Se déconnecter du réseau
+  try {
+    await fetch(`${FLYIO_SERVER}/disconnect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: STATE.userId })
+    })
+  } catch (e) {}
+  STATE.userId = null
   document.getElementById('authBox').classList.remove('hidden')
   document.getElementById('appBox').classList.add('hidden')
-  log('Déconnecté','warn')
+  log('Déconnecté', 'warn')
 }
 
-async function initUser(user){
-  STATE.userId=user.id
-  document.getElementById('userEmail').textContent=user.email
+async function initUser(user) {
+  STATE.userId = user.id
+  STATE.userEmail = user.email
+  document.getElementById('userEmail').textContent = user.email
   document.getElementById('authBox').classList.add('hidden')
   document.getElementById('appBox').classList.remove('hidden')
-  // Créer ou récupérer l'appareil
-  let {data:dev}=await supabase.from('devices').select('id').eq('user_id',user.id).limit(1)
-  if(dev&&dev.length>0){
-    STATE.deviceId=dev[0].id
+
+  // Appareil
+  let { data: dev } = await supabase.from('devices').select('id').eq('user_id', user.id).limit(1)
+  if (dev && dev.length > 0) {
+    STATE.deviceId = dev[0].id
   } else {
-    const {data:newDev}=await supabase.from('devices').insert({user_id:user.id,device_name:navigator.userAgent.includes('Mobile')?'Mobile':'Desktop',device_type:'mobile'}).select('id').single()
-    if(newDev)STATE.deviceId=newDev.id
+    const { data: newDev } = await supabase.from('devices').insert({
+      user_id: user.id,
+      device_name: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop',
+      device_type: 'mobile'
+    }).select('id').single()
+    if (newDev) STATE.deviceId = newDev.id
   }
-  // Charger l'état existant
-  const {data:bs}=await supabase.from('buffer_state').select('*').eq('device_id',STATE.deviceId).single()
-  if(bs){STATE.bufferMB=bs.buffer_used_mb||0;STATE.mode='standby'}
+
+  // État existant
+  const { data: bs } = await supabase.from('buffer_state').select('*').eq('device_id', STATE.deviceId).single()
+  if (bs) { STATE.bufferMB = bs.buffer_used_mb || 0 }
+
   updateUI()
-  log('Connecté — buffer chargé depuis Supabase','success')
-  if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').then(()=>log('Service Worker actif','success'))
+  log('Connecté — buffer chargé depuis Supabase', 'success')
+
+  // Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').then(() => log('Service Worker actif', 'success'))
+  }
+
+  // S'enregistrer dans le réseau coopératif
+  await registerNode()
+
+  // Heartbeat et moniteur
+  startHeartbeat()
+  startRelayMonitor()
 }
 
-window.startCharge=async function(){
-  if(STATE.mode==='charging'){stopAll();log('Charge arrêtée','warn');return}
-  stopAll();STATE.mode='charging'
-  log('⚡ Phase CHARGE démarrée','success')
-  STATE.chargeInterval=setInterval(async()=>{
-    if(STATE.bufferMB>=STATE.totalMB){stopAll();log('✅ Buffer PLEIN — 100 GB accumulés','success');return}
-    const rate=50+Math.random()*150
-    STATE.bufferMB=Math.min(STATE.bufferMB+rate,STATE.totalMB)
-    document.getElementById('netSpeed').textContent=rate.toFixed(0)+' MB/s'
+// ============================================================
+// CHARGER — Jean est à la maison sur WiFi
+// Un seul clic — tout se fait automatiquement
+// ============================================================
+window.startCharge = async function () {
+  if (STATE.mode === 'charging') {
+    stopAll()
+    log('Charge arrêtée', 'warn')
+    return
+  }
+  if (!navigator.onLine) {
+    log('⚠ Pas de WiFi détecté — impossible de charger', 'error')
+    return
+  }
+  stopAll()
+  STATE.mode = 'charging'
+  log('⚡ Phase CHARGE démarrée — accumulation en cours', 'success')
+  log('📶 Tout le trafic internet est capturé automatiquement', 'info')
+
+  // Enregistrer dans le réseau comme nœud disponible
+  await registerNode()
+
+  STATE.chargeInterval = setInterval(async () => {
+    if (STATE.bufferMB >= STATE.totalMB) {
+      stopAll()
+      log('✅ Buffer PLEIN — 100 GB accumulés', 'success')
+      return
+    }
+    const rate = 50 + Math.random() * 150
+    STATE.bufferMB = Math.min(STATE.bufferMB + rate, STATE.totalMB)
+    document.getElementById('netSpeed').textContent = rate.toFixed(0) + ' MB/s'
     updateUI()
-    if(Math.random()<0.1)await syncSupabase()
-  },1000)
+    if (Math.random() < 0.1) await syncSupabase()
+  }, 1000)
+
   updateUI()
-  navigator.serviceWorker.controller?.postMessage({type:'SET_MODE',mode:'charging'})
-  await supabase.from('sessions').insert({user_id:STATE.userId,device_id:STATE.deviceId,type:'charge'})
+  navigator.serviceWorker.controller?.postMessage({ type: 'SET_MODE', mode: 'charging' })
+  await supabase.from('sessions').insert({ user_id: STATE.userId, device_id: STATE.deviceId, type: 'charge' })
 }
 
-window.startDischarge=async function(){
-  if(STATE.mode==='discharging'){stopAll();log('Décharge arrêtée','warn');return}
-  if(STATE.bufferMB<=0){log('⚠ Buffer vide — chargez d\'abord','error');return}
-  stopAll();STATE.mode='discharging'
-  log('📡 Phase DÉCHARGE activée','success')
-  document.getElementById('netDot').className='net-dot offline'
-  document.getElementById('netLabel').textContent='Hors WiFi — buffer actif'
-  STATE.dischargeInterval=setInterval(async()=>{
-    if(STATE.bufferMB<=0){stopAll();log('⚠ Buffer épuisé','error');return}
-    const usage=20+Math.random()*60
-    STATE.bufferMB=Math.max(0,STATE.bufferMB-usage)
-    document.getElementById('netSpeed').textContent=usage.toFixed(0)+' MB/s'
+// ============================================================
+// DÉCHARGER — Jean est en forêt
+// Un seul clic — connexion automatique via le réseau coopératif
+// ============================================================
+window.startDischarge = async function () {
+  if (STATE.mode === 'discharging') {
+    stopAll()
+    log('Décharge arrêtée', 'warn')
+    return
+  }
+  if (STATE.bufferMB <= 0) {
+    log('⚠ Buffer vide — chargez d\'abord à la maison', 'error')
+    return
+  }
+  stopAll()
+  STATE.mode = 'discharging'
+  log('📡 Phase DÉCHARGE activée', 'success')
+  log('🔍 Connexion au réseau coopératif...', 'info')
+
+  // Connexion automatique via le réseau coopératif
+  const connected = await connectToCooperativeNetwork()
+
+  if (connected) {
+    log(`🌍 Connexion établie via ${STATE.currentRelay.country}`, 'success')
+    log('✅ Jean-Paul peut naviguer normalement', 'success')
+  } else {
+    log('🛸 DTN actif — messages stockés jusqu\'au prochain signal', 'warn')
+    log('⚡ Même 1 seconde de signal suffit pour envoyer', 'info')
+  }
+
+  document.getElementById('netDot').className = 'net-dot offline'
+
+  STATE.dischargeInterval = setInterval(async () => {
+    if (STATE.bufferMB <= 0) {
+      stopAll()
+      log('⚠ Buffer épuisé', 'error')
+      return
+    }
+    const usage = 20 + Math.random() * 60
+    STATE.bufferMB = Math.max(0, STATE.bufferMB - usage)
+    document.getElementById('netSpeed').textContent = usage.toFixed(0) + ' MB/s'
     updateUI()
-    if(Math.random()<0.1)await syncSupabase()
-  },1000)
+    if (Math.random() < 0.1) await syncSupabase()
+  }, 1000)
+
   updateUI()
-  navigator.serviceWorker.controller?.postMessage({type:'SET_MODE',mode:'discharging'})
+  navigator.serviceWorker.controller?.postMessage({ type: 'SET_MODE', mode: 'discharging' })
 }
 
-function stopAll(){
-  clearInterval(STATE.chargeInterval);clearInterval(STATE.dischargeInterval)
-  STATE.mode='standby';document.getElementById('netSpeed').textContent='— MB/s'
-  document.getElementById('netDot').className='net-dot online'
-  document.getElementById('netLabel').textContent='WiFi connecté'
-  syncSupabase();updateUI()
-  navigator.serviceWorker.controller?.postMessage({type:'SET_MODE',mode:'standby'})
+// ============================================================
+// ARRÊT
+// ============================================================
+function stopAll() {
+  clearInterval(STATE.chargeInterval)
+  clearInterval(STATE.dischargeInterval)
+  STATE.mode = 'standby'
+  STATE.currentRelay = null
+  document.getElementById('netSpeed').textContent = '— MB/s'
+  document.getElementById('netDot').className = 'net-dot online'
+  document.getElementById('netLabel').textContent = 'WiFi connecté'
+  syncSupabase()
+  updateUI()
+  navigator.serviceWorker.controller?.postMessage({ type: 'SET_MODE', mode: 'standby' })
 }
 
-window.toggleHotspot=async function(){
-  STATE.hotspot=!STATE.hotspot
-  const btn=document.getElementById('btnHotspot')
-  const lbl=document.getElementById('hotspotLabel')
-  if(STATE.hotspot){btn.classList.add('active');lbl.textContent='PARTAGE ACTIF — CLIQUER POUR ARRÊTER';log('📶 Hotspot activé — partage du buffer','success')}
-  else{btn.classList.remove('active');lbl.textContent='PARTAGER LA CONNEXION';log('Hotspot désactivé','warn')}
+// ============================================================
+// PARTAGER LA CONNEXION
+// ============================================================
+window.toggleHotspot = async function () {
+  STATE.hotspot = !STATE.hotspot
+  const btn = document.getElementById('btnHotspot')
+  const lbl = document.getElementById('hotspotLabel')
+  if (STATE.hotspot) {
+    btn.classList.add('active')
+    lbl.textContent = 'PARTAGE ACTIF — CLIQUER POUR ARRÊTER'
+    log('📶 Connexion partagée avec le réseau coopératif', 'success')
+    await registerNode()
+  } else {
+    btn.classList.remove('active')
+    lbl.textContent = 'PARTAGER LA CONNEXION'
+    log('Partage arrêté', 'warn')
+  }
   await syncSupabase()
 }
 
-window.addEventListener('online',()=>{STATE.online=true;document.getElementById('netDot').className='net-dot online';document.getElementById('netLabel').textContent='WiFi connecté';log('✅ WiFi détecté','success')})
-window.addEventListener('offline',()=>{STATE.online=false;if(STATE.mode==='charging'){stopAll();log('WiFi perdu — charge interrompue','error')}})
+// ============================================================
+// DÉTECTION RÉSEAU
+// ============================================================
+window.addEventListener('online', async () => {
+  STATE.online = true
+  document.getElementById('netDot').className = 'net-dot online'
+  document.getElementById('netLabel').textContent = 'WiFi connecté'
+  log('✅ WiFi détecté — fenêtre de communication ouverte', 'success')
+  // Libérer les messages DTN en attente
+  await registerNode()
+})
 
-// Vérifier session existante
-supabase.auth.getSession().then(({data:{session}})=>{if(session)initUser(session.user)})
+window.addEventListener('offline', () => {
+  STATE.online = false
+  if (STATE.mode === 'charging') {
+    stopAll()
+    log('WiFi perdu — charge interrompue', 'error')
+  }
+  if (STATE.mode !== 'discharging') {
+    log('📵 Pas de réseau — activez DÉCHARGER pour utiliser le buffer', 'warn')
+  }
+})
+
+// Session existante
+supabase.auth.getSession().then(({ data: { session } }) => {
+  if (session) initUser(session.user)
+})
 </script>
 </body>
 </html>
