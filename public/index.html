@@ -84,9 +84,27 @@
 
   <!-- AUTH -->
   <div id="authBox" class="auth-box">
+    <!-- Onglets -->
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button id="tabLogin" onclick="switchTab('login')" style="flex:1;padding:8px;background:rgba(0,245,196,0.2);border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-family:'Orbitron',monospace;font-size:.65rem;letter-spacing:2px;cursor:pointer">CONNEXION</button>
+      <button id="tabRegister" onclick="switchTab('register')" style="flex:1;padding:8px;background:transparent;border:1px solid var(--muted);border-radius:8px;color:var(--muted);font-family:'Orbitron',monospace;font-size:.65rem;letter-spacing:2px;cursor:pointer">INSCRIPTION</button>
+    </div>
+
     <input type="email" id="emailInput" placeholder="Email"/>
-    <input type="password" id="passInput" placeholder="Mot de passe"/>
-    <button class="btn-auth" onclick="login()">CONNEXION / INSCRIPTION</button>
+
+    <!-- Champ mot de passe avec œil -->
+    <div style="position:relative;margin-bottom:10px">
+      <input type="password" id="passInput" placeholder="Mot de passe" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;padding:10px 40px 10px 14px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:.85rem;outline:none;margin-bottom:0"/>
+      <button onclick="togglePass()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem" id="eyeBtn">👁</button>
+    </div>
+
+    <!-- Confirmation mot de passe (inscription uniquement) -->
+    <div id="confirmBox" style="position:relative;margin-bottom:10px;display:none">
+      <input type="password" id="passConfirm" placeholder="Confirmer le mot de passe" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:.85rem;outline:none"/>
+    </div>
+
+    <button class="btn-auth" id="btnAuth" onclick="login()">SE CONNECTER</button>
+    <div id="authMsg" style="margin-top:8px;font-size:.7rem;text-align:center;color:var(--muted)"></div>
   </div>
 
   <!-- APP -->
@@ -350,17 +368,48 @@ async function syncSupabase() {
 // AUTHENTIFICATION
 // ============================================================
 window.login = async function () {
-  const email = document.getElementById('emailInput').value
+  const email = document.getElementById('emailInput').value.trim()
   const pass = document.getElementById('passInput').value
+  const msg = document.getElementById('authMsg')
   if (!email || !pass) { log('Email et mot de passe requis', 'error'); return }
-  let { data, error } = await supabase.auth.signInWithPassword({ email, password: pass })
-  if (error) {
-    const r = await supabase.auth.signUp({ email, password: pass })
-    if (r.error) { log('Erreur : ' + r.error.message, 'error'); return }
-    data = r.data
+
+  if (currentTab === 'register') {
+    // INSCRIPTION
+    const confirm = document.getElementById('passConfirm').value
+    if (pass !== confirm) {
+      msg.textContent = 'Les mots de passe ne correspondent pas'
+      msg.style.color = '#ff4060'
+      return
+    }
+    if (pass.length < 6) {
+      msg.textContent = 'Mot de passe minimum 6 caractères'
+      msg.style.color = '#ff4060'
+      return
+    }
+    msg.textContent = 'Inscription en cours...'
+    msg.style.color = '#ffaa00'
+    const { data, error } = await supabase.auth.signUp({ email, password: pass })
+    if (error) {
+      msg.textContent = 'Erreur : ' + error.message
+      msg.style.color = '#ff4060'
+      log('Erreur inscription : ' + error.message, 'error')
+      return
+    }
     log('Compte créé — bienvenue !', 'success')
+    await initUser(data.user)
+  } else {
+    // CONNEXION
+    msg.textContent = 'Connexion en cours...'
+    msg.style.color = '#ffaa00'
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass })
+    if (error) {
+      msg.textContent = 'Email ou mot de passe incorrect'
+      msg.style.color = '#ff4060'
+      log('Erreur connexion : ' + error.message, 'error')
+      return
+    }
+    await initUser(data.user)
   }
-  await initUser(data.user)
 }
 
 window.logout = async function () {
@@ -568,6 +617,38 @@ window.addEventListener('offline', () => {
     log('📵 Pas de réseau — activez DÉCHARGER pour utiliser le buffer', 'warn')
   }
 })
+
+// ============================================================
+// ONGLETS + OEIL MOT DE PASSE
+// ============================================================
+let currentTab = 'login'
+
+window.switchTab = function(tab) {
+  currentTab = tab
+  const tL = document.getElementById('tabLogin')
+  const tR = document.getElementById('tabRegister')
+  const cb = document.getElementById('confirmBox')
+  const ba = document.getElementById('btnAuth')
+  const base = 'flex:1;padding:8px;border-radius:8px;font-family:Orbitron,monospace;font-size:.65rem;letter-spacing:2px;cursor:pointer;'
+  if (tab === 'login') {
+    tL.style.cssText = base + 'background:rgba(0,245,196,0.2);border:1px solid #00f5c4;color:#00f5c4'
+    tR.style.cssText = base + 'background:transparent;border:1px solid #4a6080;color:#4a6080'
+    cb.style.display = 'none'
+    ba.textContent = 'SE CONNECTER'
+  } else {
+    tR.style.cssText = base + 'background:rgba(0,245,196,0.2);border:1px solid #00f5c4;color:#00f5c4'
+    tL.style.cssText = base + 'background:transparent;border:1px solid #4a6080;color:#4a6080'
+    cb.style.display = 'block'
+    ba.textContent = "S'INSCRIRE"
+  }
+}
+
+window.togglePass = function() {
+  const inp = document.getElementById('passInput')
+  const btn = document.getElementById('eyeBtn')
+  inp.type = inp.type === 'password' ? 'text' : 'password'
+  btn.textContent = inp.type === 'password' ? '👁' : '🙈'
+}
 
 // Session existante
 supabase.auth.getSession().then(({ data: { session } }) => {
