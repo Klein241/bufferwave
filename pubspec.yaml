@@ -34,7 +34,7 @@ dependencies:
   share_plus: ^12.0.1
   purchases_flutter: ^9.12.3
   pointycastle: ^4.0.0
-  flutter_map: ^8.2.2
+  flutter_map: 8.0.0
   latlong2: ^0.9.1
 
 dev_dependencies:
