@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # bufferwave_app_pro
 
 A new Flutter project.
@@ -15,3 +16,6 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+=======
+# bufferwave
+>>>>>>> 5bfcb207bd272f929bb75d5e7f49eec431bde96f

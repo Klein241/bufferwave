@@ -1,0 +1,13 @@
+{
+  "name": "bufferwave-server",
+  "version": "3.0.0",
+  "description": "BufferWave Cooperative Network — DTN + WebSocket Tunnel",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0",
+    "ws": "^8.0.0"
+  }
+}

@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BufferWave — Réseau Coopératif DTN</title>
+  <link rel="manifest" href="/manifest.json"/>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0a0f1e;--accent:#00f5c4;--accent2:#0084ff;
+      --danger:#ff4060;--text:#e0eeff;--muted:#4a6080;
+      --border:rgba(0,245,196,0.15);--card:rgba(255,255,255,0.04);
+      --warning:#ffaa00
+    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+    body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,245,196,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,196,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}
+    .container{position:relative;z-index:1;width:100%;max-width:480px;padding:24px 16px 60px}
+
+    /* HEADER */
+    header{text-align:center;margin-bottom:28px}
+    .logo{font-family:'Orbitron',monospace;font-weight:900;font-size:2.2rem;letter-spacing:4px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .tagline{color:var(--muted);font-size:.7rem;letter-spacing:3px;margin-top:6px;text-transform:uppercase}
+    .version{display:inline-block;margin-top:8px;padding:3px 12px;border:1px solid rgba(0,245,196,0.2);border-radius:20px;font-size:.58rem;color:var(--muted);letter-spacing:2px}
+
+    /* SCREENS */
+    .screen{display:none}
+    .screen.active{display:block}
+
+    /* AUTH */
+    .auth-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:16px}
+    .auth-tabs{display:flex;gap:8px;margin-bottom:20px}
+    .auth-tab{flex:1;padding:10px;background:transparent;border:1px solid var(--muted);border-radius:8px;color:var(--muted);font-family:'Orbitron',monospace;font-size:.6rem;letter-spacing:2px;cursor:pointer;transition:all .3s}
+    .auth-tab.active{background:rgba(0,245,196,0.12);border-color:var(--accent);color:var(--accent)}
+    .field{margin-bottom:14px}
+    .field label{display:block;font-size:.62rem;color:var(--muted);letter-spacing:2px;margin-bottom:6px;text-transform:uppercase}
+    .field input,.field select{width:100%;background:rgba(0,0,0,0.35);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:.85rem;outline:none;transition:border .2s;-webkit-appearance:none;appearance:none}
+    .field input:focus,.field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,245,196,0.06)}
+    .field select option{background:#0d1525;color:var(--text)}
+    .field-row{display:flex;gap:10px}
+    .field-row .field{flex:1}
+    .pass-wrap{position:relative}
+    .pass-wrap input{padding-right:44px}
+    .eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:.95rem;padding:4px;line-height:1;transition:color .2s}
+    .eye-btn:hover{color:var(--accent)}
+    .btn-primary{width:100%;padding:14px;background:linear-gradient(135deg,rgba(0,245,196,0.18),rgba(0,132,255,0.18));border:1px solid var(--accent);border-radius:10px;color:var(--accent);font-family:'Orbitron',monospace;font-size:.72rem;letter-spacing:2px;cursor:pointer;transition:all .3s;margin-top:6px}
+    .btn-primary:hover{background:linear-gradient(135deg,rgba(0,245,196,0.35),rgba(0,132,255,0.35));transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,245,196,0.15)}
+    .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+    .auth-msg{margin-top:10px;font-size:.68rem;text-align:center;padding:9px 12px;border-radius:8px;display:none;line-height:1.5}
+    .auth-msg.error{background:rgba(255,64,96,0.08);border:1px solid rgba(255,64,96,0.25);color:var(--danger)}
+    .auth-msg.success{background:rgba(0,245,196,0.08);border:1px solid rgba(0,245,196,0.25);color:var(--accent)}
+    .auth-msg.info{background:rgba(0,132,255,0.08);border:1px solid rgba(0,132,255,0.25);color:var(--accent2)}
+
+    /* USER BAR */
+    .user-bar{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:12px}
+    .user-info{display:flex;align-items:center;gap:10px}
+    .avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:900;color:#000;flex-shrink:0}
+    .user-details{display:flex;flex-direction:column;gap:2px}
+    .u-email{font-size:.63rem;color:var(--text)}
+    .u-country{font-size:.58rem;color:var(--muted)}
+    .btn-logout{background:none;border:1px solid var(--muted);color:var(--muted);border-radius:6px;padding:4px 10px;font-family:'Share Tech Mono',monospace;font-size:.6rem;cursor:pointer;transition:all .2s;white-space:nowrap}
+    .btn-logout:hover{border-color:var(--danger);color:var(--danger)}
+
+    /* STATUS */
+    .status-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+    .status-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+    .sc-label{font-size:.58rem;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px}
+    .sc-value{font-family:'Orbitron',monospace;font-size:.82rem;color:var(--accent);display:flex;align-items:center;gap:6px}
+    .net-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0}
+    .net-dot.offline{background:var(--danger)}
+    .net-dot.online{animation:pulse 1.5s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+    /* RÉSEAU COOPÉRATIF */
+    .coop-panel{background:linear-gradient(135deg,rgba(0,245,196,0.04),rgba(0,132,255,0.04));border:1px solid rgba(0,245,196,0.18);border-radius:12px;padding:14px;margin-bottom:12px}
+    .coop-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .coop-title{font-size:.62rem;color:var(--accent);letter-spacing:2px;text-transform:uppercase}
+    .coop-count{font-family:'Orbitron',monospace;font-size:1rem;color:var(--accent)}
+    .nodes-list{display:flex;gap:6px;flex-wrap:wrap;min-height:22px}
+    .node-chip{padding:4px 10px;background:rgba(0,245,196,0.08);border:1px solid rgba(0,245,196,0.25);border-radius:20px;font-size:.6rem;color:var(--accent);display:flex;align-items:center;gap:5px}
+    .node-chip.relay{background:rgba(0,132,255,0.12);border-color:rgba(0,132,255,0.4);color:var(--accent2)}
+    .chip-dot{width:5px;height:5px;border-radius:50%;background:currentColor;animation:pulse 1.5s infinite}
+    .no-nodes{font-size:.62rem;color:var(--muted);font-style:italic}
+
+    /* DTN PANEL */
+    .dtn-panel{background:rgba(255,170,0,0.04);border:1px solid rgba(255,170,0,0.2);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:none}
+    .dtn-panel.show{display:block}
+    .dtn-title{font-size:.62rem;color:var(--warning);letter-spacing:2px;margin-bottom:6px;text-transform:uppercase}
+    .dtn-body{font-size:.62rem;color:var(--muted);line-height:1.7}
+
+    /* BATTERIE */
+    .battery-section{display:flex;flex-direction:column;align-items:center;margin-bottom:22px}
+    .battery-wrap{position:relative;width:152px;height:280px}
+    .battery-tip{position:absolute;top:0;left:50%;transform:translateX(-50%);width:44px;height:18px;border:2px solid var(--accent);border-bottom:none;border-radius:6px 6px 0 0;background:rgba(0,245,196,0.04)}
+    .battery-body{position:absolute;bottom:0;left:0;right:0;height:260px;border:2px solid var(--accent);border-radius:10px;overflow:hidden;background:rgba(0,245,196,0.02);box-shadow:0 0 30px rgba(0,245,196,0.07)}
+    .battery-fill{position:absolute;bottom:0;left:0;right:0;height:0%;background:linear-gradient(180deg,var(--accent2),var(--accent));transition:height .8s cubic-bezier(.4,0,.2,1)}
+    .battery-percent{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;color:#fff;text-shadow:0 0 20px rgba(0,245,196,0.8);z-index:2}
+    .battery-label{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:.58rem;color:rgba(255,255,255,0.45);letter-spacing:2px;white-space:nowrap;z-index:2}
+    .bubble{position:absolute;width:5px;height:5px;background:rgba(255,255,255,0.22);border-radius:50%;animation:rise 3s ease-in infinite;display:none}
+    .mode-charge .bubble{display:block}
+    @keyframes rise{0%{bottom:4%;opacity:1}100%{bottom:96%;opacity:0}}
+    .bubble:nth-child(1){left:18%;animation-delay:0s}
+    .bubble:nth-child(2){left:50%;animation-delay:.9s}
+    .bubble:nth-child(3){left:78%;animation-delay:1.8s}
+    .battery-stats{display:flex;gap:18px;margin-top:14px;text-align:center}
+    .stat-val{font-family:'Orbitron',monospace;font-size:.92rem;color:var(--accent)}
+    .stat-lbl{font-size:.57rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+    .mode-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 18px;border-radius:20px;font-size:.63rem;letter-spacing:2px;text-transform:uppercase;margin-top:12px;transition:all .4s}
+    .mode-badge.standby{background:rgba(74,96,128,0.2);border:1px solid var(--muted);color:var(--muted)}
+    .mode-badge.charging{background:rgba(0,132,255,0.12);border:1px solid var(--accent2);color:var(--accent2);box-shadow:0 0 15px rgba(0,132,255,0.15)}
+    .mode-badge.discharging{background:rgba(0,245,196,0.12);border:1px solid var(--accent);color:var(--accent);box-shadow:0 0 15px rgba(0,245,196,0.15)}
+    .mode-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+    .mode-badge.charging .mode-dot,.mode-badge.discharging .mode-dot{animation:pulse 1.2s infinite}
+
+    /* CONTROLS */
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+    .btn-action{padding:20px 10px;border:none;border-radius:14px;font-family:'Orbitron',monospace;font-size:.6rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .3s}
+    .btn-charge{background:rgba(0,132,255,0.1);border:1px solid rgba(0,132,255,0.35);color:var(--accent2)}
+    .btn-charge:hover,.btn-charge.active{background:rgba(0,132,255,0.28);box-shadow:0 0 25px rgba(0,132,255,0.2);transform:translateY(-2px)}
+    .btn-discharge{background:rgba(0,245,196,0.1);border:1px solid rgba(0,245,196,0.35);color:var(--accent)}
+    .btn-discharge:hover,.btn-discharge.active{background:rgba(0,245,196,0.28);box-shadow:0 0 25px rgba(0,245,196,0.2);transform:translateY(-2px)}
+    .btn-icon{display:block;font-size:1.5rem;margin-bottom:8px}
+    .btn-hotspot{width:100%;padding:14px;background:rgba(255,64,96,0.07);border:1px solid rgba(255,64,96,0.3);color:var(--danger);border-radius:12px;font-family:'Orbitron',monospace;font-size:.6rem;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all .3s;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:10px}
+    .btn-hotspot:hover,.btn-hotspot.active{background:rgba(255,64,96,0.22);box-shadow:0 0 18px rgba(255,64,96,0.12)}
+
+    /* LOG */
+    .log-section{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .log-header{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border)}
+    .log-title{display:flex;align-items:center;gap:8px;font-size:.62rem;color:var(--muted);letter-spacing:2px}
+    .log-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+    .log-clear{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.58rem;font-family:'Share Tech Mono',monospace;transition:color .2s}
+    .log-clear:hover{color:var(--danger)}
+    .log-body{padding:10px 14px;height:138px;overflow-y:auto;display:flex;flex-direction:column;gap:3px}
+    .log-line{font-size:.63rem;line-height:1.5}
+    .log-line.info{color:var(--accent2)}
+    .log-line.success{color:var(--accent)}
+    .log-line.warn{color:var(--warning)}
+    .log-line.error{color:var(--danger)}
+
+    .hidden{display:none!important}
+
+    /* SPINNER */
+    .spinner{display:inline-block;width:11px;height:11px;border:2px solid rgba(0,245,196,0.25);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* TOAST */
+    #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);padding:10px 22px;border-radius:8px;font-size:.68rem;z-index:999;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap}
+    #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    #toast.success{background:rgba(0,245,196,0.12);border:1px solid var(--accent);color:var(--accent)}
+    #toast.error{background:rgba(255,64,96,0.12);border:1px solid var(--danger);color:var(--danger)}
+    #toast.warn{background:rgba(255,170,0,0.12);border:1px solid var(--warning);color:var(--warning)}
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">BUFFERWAVE</div>
+    <div class="tagline">Réseau Coopératif · DTN Store and Forward</div>
+    <div class="version">v3.0 · NASA DTN Protocol</div>
+  </header>
+
+  <!-- ══════════════════════════ ÉCRAN AUTH ══════════════════════════ -->
+  <div id="screenAuth" class="screen active">
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabLogin" onclick="switchTab('login')">CONNEXION</button>
+        <button class="auth-tab" id="tabRegister" onclick="switchTab('register')">INSCRIPTION</button>
+      </div>
+
+      <div class="field">
+        <label>Adresse Email</label>
+        <input type="email" id="emailInput" placeholder="votre@email.com" autocomplete="email"/>
+      </div>
+
+      <div class="field">
+        <label>Mot de passe</label>
+        <div class="pass-wrap">
+          <input type="password" id="passInput" placeholder="••••••••" autocomplete="current-password"/>
+          <button class="eye-btn" onclick="togglePass('passInput','eye1')" id="eye1">👁</button>
+        </div>
+      </div>
+
+      <!-- CHAMPS INSCRIPTION UNIQUEMENT -->
+      <div id="regFields" class="hidden">
+        <div class="field">
+          <label>Confirmer le mot de passe</label>
+          <div class="pass-wrap">
+            <input type="password" id="passConfirm" placeholder="••••••••"/>
+            <button class="eye-btn" onclick="togglePass('passConfirm','eye2')" id="eye2">👁</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Prénom</label>
+            <input type="text" id="firstNameInput" placeholder="Jean"/>
+          </div>
+          <div class="field">
+            <label>Nom</label>
+            <input type="text" id="lastNameInput" placeholder="Paul"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>Pays de résidence</label>
+          <select id="countryInput">
+            <option value="">— Sélectionner votre pays —</option>
+            <optgroup label="Afrique Centrale">
+              <option value="CM">🇨🇲 Cameroun</option>
+              <option value="CD">🇨🇩 Congo RDC</option>
+              <option value="CG">🇨🇬 Congo Brazzaville</option>
+              <option value="GA">🇬🇦 Gabon</option>
+              <option value="CF">🇨🇫 Centrafrique</option>
+              <option value="TD">🇹🇩 Tchad</option>
+            </optgroup>
+            <optgroup label="Afrique de l'Ouest">
+              <option value="SN">🇸🇳 Sénégal</option>
+              <option value="CI">🇨🇮 Côte d'Ivoire</option>
+              <option value="GN">🇬🇳 Guinée</option>
+              <option value="TG">🇹🇬 Togo</option>
+              <option value="BJ">🇧🇯 Bénin</option>
+              <option value="ML">🇲🇱 Mali</option>
+              <option value="BF">🇧🇫 Burkina Faso</option>
+              <option value="NE">🇳🇪 Niger</option>
+              <option value="GH">🇬🇭 Ghana</option>
+              <option value="NG">🇳🇬 Nigeria</option>
+            </optgroup>
+            <optgroup label="Afrique du Nord">
+              <option value="MA">🇲🇦 Maroc</option>
+              <option value="TN">🇹🇳 Tunisie</option>
+              <option value="DZ">🇩🇿 Algérie</option>
+            </optgroup>
+            <optgroup label="Europe">
+              <option value="FR">🇫🇷 France</option>
+              <option value="BE">🇧🇪 Belgique</option>
+              <option value="CH">🇨🇭 Suisse</option>
+              <option value="DE">🇩🇪 Allemagne</option>
+            </optgroup>
+            <optgroup label="Amérique">
+              <option value="CA">🇨🇦 Canada</option>
+              <option value="US">🇺🇸 États-Unis</option>
+            </optgroup>
+            <optgroup label="Autre">
+              <option value="OTHER">🌍 Autre pays</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btnAuth" onclick="handleAuth()">SE CONNECTER</button>
+      <div class="auth-msg" id="authMsg"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ ÉCRAN APP ══════════════════════════ -->
+  <div id="screenApp" class="screen">
+
+    <div class="user-bar">
+      <div class="user-info">
+        <div class="avatar" id="userAvatar">?</div>
+        <div class="user-details">
+          <div class="u-email" id="userEmail">—</div>
+          <div class="u-country" id="userCountryLabel">—</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">DÉCONNEXION</button>
+    </div>
+
+    <div class="status-grid">
+      <div class="status-card">
+        <div class="sc-label">Réseau</div>
+        <div class="sc-value">
+          <div class="net-dot online" id="netDot"></div>
+          <span id="netLabel">WiFi</span>
+        </div>
+      </div>
+      <div class="status-card">
+        <div class="sc-label">Débit</div>
+        <div class="sc-value" id="netSpeed">— MB/s</div>
+      </div>
+    </div>
+
+    <!-- Réseau coopératif -->
+    <div class="coop-panel">
+      <div class="coop-header">
+        <div class="coop-title">🌍 Réseau Coopératif</div>
+        <div>
+          <span class="coop-count" id="nodeCount">0</span>
+          <span style="font-size:.6rem;color:var(--muted)"> nœuds actifs</span>
+        </div>
+      </div>
+      <div class="nodes-list" id="nodesList">
+        <span class="no-nodes">Connexion au réseau...</span>
+      </div>
+    </div>
+
+    <!-- Mode DTN isolation -->
+    <div class="dtn-panel" id="dtnPanel">
+      <div class="dtn-title">🛸 MODE DTN — ISOLATION TOTALE</div>
+      <div class="dtn-body">
+        Jean-Paul = Curiosity sur Mars · La forêt = l'espace<br>
+        <strong style="color:var(--warning)" id="dtnCount">0 message(s)</strong> en attente de livraison<br>
+        <span style="color:var(--accent)">⚡ Même 1 seconde de signal suffit pour tout envoyer</span>
+      </div>
+    </div>
+
+    <!-- Batterie -->
+    <div class="battery-section" id="batterySection">
+      <div class="battery-wrap">
+        <div class="battery-tip"></div>
+        <div class="battery-body">
+          <div class="battery-fill" id="batteryFill"></div>
+          <div class="bubble"></div>
+          <div class="bubble"></div>
+          <div class="bubble"></div>
+          <div class="battery-percent" id="batteryPercent">0%</div>
+          <div class="battery-label" id="batteryLabel">BUFFER VIDE</div>
+        </div>
+      </div>
+      <div class="battery-stats">
+        <div class="stat">
+          <div class="stat-val" id="statUsed">0 MB</div>
+          <div class="stat-lbl">Stocké</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val">100 GB</div>
+          <div class="stat-lbl">Capacité</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="statTime">0h</div>
+          <div class="stat-lbl">Autonomie</div>
+        </div>
+      </div>
+      <div class="mode-badge standby" id="modeBadge">
+        <div class="mode-dot"></div>
+        <span id="modeLabel">En attente</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn-action btn-charge" id="btnCharge" onclick="startCharge()">
+        <span class="btn-icon">⚡</span>CHARGER
+      </button>
+      <button class="btn-action btn-discharge" id="btnDischarge" onclick="startDischarge()">
+        <span class="btn-icon">📡</span>DÉCHARGER
+      </button>
+    </div>
+
+    <button class="btn-hotspot" id="btnHotspot" onclick="toggleHotspot()">
+      <span>📶</span><span id="hotspotLabel">PARTAGER MA CONNEXION</span>
+    </button>
+
+    <div class="log-section">
+      <div class="log-header">
+        <div class="log-title"><div class="log-dot"></div>JOURNAL SYSTÈME</div>
+        <button class="log-clear" onclick="clearLog()">EFFACER</button>
+      </div>
+      <div class="log-body" id="logBody">
+        <div class="log-line info">[ BUFFERWAVE v3.0 ] — DTN NASA Protocol actif</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+const SUPABASE_URL = 'https://udmmtyczhxqscgigrden.supabase.co'
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVkbW10eWN6aHhxc2NnaWdyZGVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2NzY5ODgsImV4cCI6MjA4NzI1Mjk4OH0.VrLhrYQgy31EsstVXLeeVVVYP5iMvsYG5Sel0hp6dgI'
+const FLYIO = 'https://bufferwave-network.fly.dev'
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
+
+const COUNTRIES = {
+  CM:'🇨🇲 Cameroun',FR:'🇫🇷 France',BE:'🇧🇪 Belgique',
+  MA:'🇲🇦 Maroc',CA:'🇨🇦 Canada',SN:'🇸🇳 Sénégal',
+  CI:"🇨🇮 Côte d'Ivoire",GN:'🇬🇳 Guinée',TG:'🇹🇬 Togo',
+  BJ:'🇧🇯 Bénin',CD:'🇨🇩 Congo RDC',CG:'🇨🇬 Congo Brazza',
+  GA:'🇬🇦 Gabon',CF:'🇨🇫 Centrafrique',TD:'🇹🇩 Tchad',
+  NE:'🇳🇪 Niger',ML:'🇲🇱 Mali',BF:'🇧🇫 Burkina Faso',
+  GH:'🇬🇭 Ghana',NG:'🇳🇬 Nigeria',TN:'🇹🇳 Tunisie',
+  DZ:'🇩🇿 Algérie',CH:'🇨🇭 Suisse',DE:'🇩🇪 Allemagne',
+  US:'🇺🇸 États-Unis',OTHER:'🌍 Autre pays'
+}
+
+// ── ÉTAT ──────────────────────────────────────────────────────
+const S = {
+  mode:'standby', bufferMB:0, totalMB:102400,
+  hotspot:false, userId:null, deviceId:null,
+  email:null, country:null, firstName:null,
+  nodesActifs:0, currentRelay:null, dtnQueue:0,
+  chargeTimer:null, dischargeTimer:null,
+  heartbeatTimer:null, nodesTimer:null,
+  nodesData:[]
+}
+
+// ── TOAST ─────────────────────────────────────────────────────
+let toastTimer
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast')
+  clearTimeout(toastTimer)
+  t.textContent = msg
+  t.className = `show ${type}`
+  toastTimer = setTimeout(() => t.className = '', 3000)
+}
+
+// ── LOG ───────────────────────────────────────────────────────
+function log(msg, type='info') {
+  const b = document.getElementById('logBody')
+  const ts = new Date().toLocaleTimeString('fr-FR')
+  const d = document.createElement('div')
+  d.className = `log-line ${type}`
+  d.textContent = `[${ts}] ${msg}`
+  b.insertBefore(d, b.firstChild)
+  while (b.children.length > 80) b.removeChild(b.lastChild)
+}
+window.clearLog = () => {
+  document.getElementById('logBody').innerHTML =
+    '<div class="log-line info">Journal effacé</div>'
+}
+
+function fmt(mb) {
+  return mb >= 1024 ? (mb/1024).toFixed(1)+' GB' : Math.round(mb)+' MB'
+}
+
+// ── UI ────────────────────────────────────────────────────────
+function updateUI() {
+  const pct = Math.round((S.bufferMB / S.totalMB) * 100)
+  document.getElementById('batteryFill').style.height = pct + '%'
+  document.getElementById('batteryPercent').textContent = pct + '%'
+  document.getElementById('statUsed').textContent = fmt(S.bufferMB)
+  document.getElementById('statTime').textContent = Math.round(S.bufferMB/150) + 'h'
+  const lbls = ['BUFFER VIDE','FAIBLE','MOYEN','ÉLEVÉ','PLEIN']
+  document.getElementById('batteryLabel').textContent =
+    pct===0?lbls[0]:pct<30?lbls[1]:pct<60?lbls[2]:pct<100?lbls[3]:lbls[4]
+
+  const badge = document.getElementById('modeBadge')
+  const sec = document.getElementById('batterySection')
+  badge.className = 'mode-badge ' + S.mode
+  sec.className = 'battery-section' + (S.mode==='charging' ? ' mode-charge' : '')
+  const modeLabels = {charging:'Phase CHARGE',discharging:'Phase DÉCHARGE',standby:'En attente'}
+  document.getElementById('modeLabel').textContent = modeLabels[S.mode]
+  document.getElementById('btnCharge').classList.toggle('active', S.mode==='charging')
+  document.getElementById('btnDischarge').classList.toggle('active', S.mode==='discharging')
+  document.getElementById('nodeCount').textContent = S.nodesActifs
+  document.getElementById('dtnCount').textContent = `${S.dtnQueue} message(s)`
+  document.getElementById('dtnPanel').classList.toggle(
+    'show', S.mode==='discharging' && !S.currentRelay
+  )
+  renderNodes()
+}
+
+function renderNodes() {
+  const c = document.getElementById('nodesList')
+  if (S.nodesActifs === 0) {
+    c.innerHTML = '<span class="no-nodes">Aucun nœud actif pour le moment</span>'
+    return
+  }
+  let html = ''
+  const max = Math.min(S.nodesData.length || S.nodesActifs, 6)
+  for (let i = 0; i < max; i++) {
+    const n = S.nodesData[i]
+    const isRelay = S.currentRelay && n?.id === S.currentRelay.nodeId
+    const label = n ? (COUNTRIES[n.country] || n.country || 'Nœud') : `Nœud ${i+1}`
+    html += `<div class="node-chip ${isRelay?'relay':''}">
+      <div class="chip-dot"></div>${isRelay?'📡 ':''} ${label}
+    </div>`
+  }
+  if (S.nodesActifs > 6) html += `<div class="node-chip">+${S.nodesActifs-6} autres</div>`
+  c.innerHTML = html
+}
+
+// ── FLYIO ─────────────────────────────────────────────────────
+async function flyPost(path, data={}) {
+  try {
+    const r = await fetch(FLYIO+path, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(data),
+      signal:AbortSignal.timeout(5000)
+    })
+    return await r.json()
+  } catch { return null }
+}
+
+async function flyGet(path) {
+  try {
+    const r = await fetch(FLYIO+path, {signal:AbortSignal.timeout(5000)})
+    return await r.json()
+  } catch { return null }
+}
+
+async function registerNode() {
+  if (!S.userId) return
+  const res = await flyPost('/register', {
+    userId:S.userId, country:S.country||'OTHER',
+    bandwidthMbps:10, publicKey:S.userId, familyGroup:S.email
+  })
+  if (res) {
+    S.nodesActifs = res.nodesActifs || 0
+    if (res.messagesDTNLiberes > 0) {
+      log(`🛸 ${res.messagesDTNLiberes} message(s) DTN libéré(s) !`, 'success')
+      showToast(`${res.messagesDTNLiberes} message(s) livré(s)`, 'success')
+    }
+    updateUI()
+  }
+}
+
+async function connectNetwork() {
+  log('🔍 Recherche d\'un nœud disponible...', 'info')
+  const res = await flyPost('/connect', {
+    userId:S.userId,
+    userProfile:{country:S.country, familyGroup:S.email}
+  })
+  if (res?.success && res.mode==='cooperative_relay') {
+    S.currentRelay = res.relay
+    log(`✅ Connecté via ${res.relay.country} — ${res.relay.bandwidthMbps} Mbps`, 'success')
+    document.getElementById('netLabel').textContent = `Via ${COUNTRIES[res.relay.country]||res.relay.country}`
+    document.getElementById('netDot').className = 'net-dot online'
+    showToast(`Connexion via ${COUNTRIES[res.relay.country]||res.relay.country}`, 'success')
+    return true
+  }
+  S.currentRelay = null
+  log('🛸 Aucun nœud dispo — Mode DTN isolation activé', 'warn')
+  log('💾 Vos données seront envoyées au prochain signal', 'warn')
+  document.getElementById('netLabel').textContent = 'DTN · en attente'
+  document.getElementById('netDot').className = 'net-dot offline'
+  return false
+}
+
+function startHeartbeat() {
+  clearInterval(S.heartbeatTimer)
+  clearInterval(S.nodesTimer)
+  S.heartbeatTimer = setInterval(() => {
+    flyPost('/heartbeat', {userId:S.userId})
+  }, 15000)
+  S.nodesTimer = setInterval(async () => {
+    const r = await flyGet('/nodes')
+    if (r) {
+      const prev = S.nodesActifs
+      S.nodesActifs = r.total || 0
+      S.nodesData = r.nodes || []
+      if (S.nodesActifs !== prev) updateUI()
+    }
+  }, 8000)
+}
+
+// ── SUPABASE ──────────────────────────────────────────────────
+async function syncDB() {
+  if (!S.userId || !S.deviceId) return
+  try {
+    await supabase.from('buffer_state').upsert({
+      user_id:S.userId, device_id:S.deviceId,
+      mode:S.mode, buffer_used_mb:S.bufferMB,
+      buffer_total_mb:S.totalMB,
+      pourcentage:Math.round((S.bufferMB/S.totalMB)*100),
+      hotspot_active:S.hotspot
+    },{onConflict:'device_id'})
+  } catch {}
+}
+
+// ── AUTH TABS ─────────────────────────────────────────────────
+let currentTab = 'login'
+window.switchTab = function(tab) {
+  currentTab = tab
+  document.getElementById('tabLogin').classList.toggle('active', tab==='login')
+  document.getElementById('tabRegister').classList.toggle('active', tab==='register')
+  document.getElementById('regFields').classList.toggle('hidden', tab==='login')
+  document.getElementById('btnAuth').textContent = tab==='login' ? 'SE CONNECTER' : "S'INSCRIRE"
+  document.getElementById('authMsg').style.display = 'none'
+}
+
+window.togglePass = function(id, btnId) {
+  const inp = document.getElementById(id)
+  const btn = document.getElementById(btnId)
+  inp.type = inp.type==='password' ? 'text' : 'password'
+  btn.textContent = inp.type==='password' ? '👁' : '🙈'
+}
+
+function showMsg(msg, type='error') {
+  const el = document.getElementById('authMsg')
+  el.textContent = msg
+  el.className = `auth-msg ${type}`
+  el.style.display = 'block'
+}
+
+// ── HANDLE AUTH ───────────────────────────────────────────────
+window.handleAuth = async function() {
+  const email = document.getElementById('emailInput').value.trim()
+  const pass = document.getElementById('passInput').value
+  const btn = document.getElementById('btnAuth')
+
+  if (!email || !pass) { showMsg('Email et mot de passe requis'); return }
+
+  btn.disabled = true
+  btn.innerHTML = '<span class="spinner"></span>Chargement...'
+
+  if (currentTab === 'register') {
+    const confirm = document.getElementById('passConfirm').value
+    const country = document.getElementById('countryInput').value
+    const firstName = document.getElementById('firstNameInput').value.trim()
+    const lastName = document.getElementById('lastNameInput').value.trim()
+
+    if (pass !== confirm) {
+      showMsg('Les mots de passe ne correspondent pas')
+      resetBtn(); return
+    }
+    if (pass.length < 6) {
+      showMsg('Mot de passe minimum 6 caractères')
+      resetBtn(); return
+    }
+    if (!country) {
+      showMsg('Veuillez sélectionner votre pays')
+      resetBtn(); return
+    }
+
+    showMsg('Création du compte en cours...', 'info')
+
+    const {data, error} = await supabase.auth.signUp({
+      email, password:pass,
+      options:{data:{country, first_name:firstName, last_name:lastName}}
+    })
+
+    if (error) {
+      if (error.message.includes('rate limit')) {
+        showMsg('⚠ Limite d\'envoi d\'emails atteinte. Réessayez dans 1h ou contactez l\'administrateur.')
+      } else if (error.message.includes('already registered')) {
+        showMsg('Cet email est déjà inscrit. Utilisez l\'onglet CONNEXION.')
+      } else {
+        showMsg('Erreur : ' + error.message)
+      }
+      resetBtn(); return
+    }
+
+    showMsg('✅ Compte créé ! Vérifiez votre email pour confirmer.', 'success')
+    log('Compte créé avec succès — bienvenue dans BufferWave !', 'success')
+    showToast('Bienvenue dans BufferWave !', 'success')
+    if (data.user) await initUser(data.user, {country, firstName, lastName})
+
+  } else {
+    showMsg('Connexion en cours...', 'info')
+    const {data, error} = await supabase.auth.signInWithPassword({email, password:pass})
+    if (error) {
+      showMsg('Email ou mot de passe incorrect')
+      resetBtn(); return
+    }
+    await initUser(data.user)
+  }
+
+  resetBtn()
+
+  function resetBtn() {
+    btn.disabled = false
+    btn.textContent = currentTab==='login' ? 'SE CONNECTER' : "S'INSCRIRE"
+  }
+}
+
+// ── INIT USER ─────────────────────────────────────────────────
+async function initUser(user, extra={}) {
+  S.userId = user.id
+  S.email = user.email
+  S.country = extra.country || user.user_metadata?.country || 'OTHER'
+  S.firstName = extra.firstName || user.user_metadata?.first_name || ''
+
+  document.getElementById('userAvatar').textContent =
+    (S.firstName?.[0] || S.email?.[0] || '?').toUpperCase()
+  document.getElementById('userEmail').textContent = S.email
+  document.getElementById('userCountryLabel').textContent =
+    COUNTRIES[S.country] || S.country
+
+  document.getElementById('screenAuth').classList.remove('active')
+  document.getElementById('screenApp').classList.add('active')
+
+  // Appareil Supabase
+  let {data:dev} = await supabase.from('devices').select('id').eq('user_id',user.id).limit(1)
+  if (dev?.length > 0) {
+    S.deviceId = dev[0].id
+  } else {
+    const {data:nd} = await supabase.from('devices').insert({
+      user_id:user.id,
+      device_name:navigator.userAgent.includes('Mobile')?'Mobile':'Desktop',
+      device_type:'mobile'
+    }).select('id').single()
+    if (nd) S.deviceId = nd.id
+  }
+
+  // État existant
+  const {data:bs} = await supabase.from('buffer_state').select('*').eq('device_id',S.deviceId).single()
+  if (bs) S.bufferMB = bs.buffer_used_mb || 0
+
+  updateUI()
+  log(`✅ Connecté : ${S.email}`, 'success')
+  log(`🌍 Pays : ${COUNTRIES[S.country]||S.country}`, 'info')
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+      .then(()=>log('Service Worker DTN actif', 'success'))
+      .catch(()=>{})
+  }
+
+  await registerNode()
+  startHeartbeat()
+}
+
+window.logout = async function() {
+  stopAll()
+  clearInterval(S.heartbeatTimer)
+  clearInterval(S.nodesTimer)
+  await flyPost('/disconnect', {userId:S.userId})
+  await supabase.auth.signOut()
+  Object.assign(S, {
+    userId:null,deviceId:null,email:null,country:null,
+    currentRelay:null,nodesActifs:0,dtnQueue:0,nodesData:[]
+  })
+  document.getElementById('screenApp').classList.remove('active')
+  document.getElementById('screenAuth').classList.add('active')
+  document.getElementById('emailInput').value = ''
+  document.getElementById('passInput').value = ''
+  document.getElementById('authMsg').style.display = 'none'
+  log('Déconnecté', 'warn')
+}
+
+// ── CHARGER ───────────────────────────────────────────────────
+window.startCharge = async function() {
+  if (S.mode==='charging') { stopAll(); log('Charge arrêtée','warn'); return }
+  if (!navigator.onLine) {
+    showToast('Pas de WiFi détecté','error')
+    log('⚠ WiFi requis pour charger','error'); return
+  }
+  stopAll(); S.mode='charging'
+  log('⚡ Phase CHARGE démarrée','success')
+  log('📶 Accumulation du trafic internet en cours','info')
+  await registerNode()
+
+  S.chargeTimer = setInterval(async () => {
+    if (S.bufferMB >= S.totalMB) {
+      stopAll(); log('✅ Buffer PLEIN !','success')
+      showToast('Buffer plein !','success'); return
+    }
+    const rate = 40 + Math.random() * 160
+    S.bufferMB = Math.min(S.bufferMB+rate, S.totalMB)
+    document.getElementById('netSpeed').textContent = rate.toFixed(0)+' MB/s'
+    updateUI()
+    if (Math.random() < 0.08) await syncDB()
+  }, 1000)
+
+  updateUI()
+  navigator.serviceWorker.controller?.postMessage({type:'SET_MODE',mode:'charging'})
+  supabase.from('sessions').insert({user_id:S.userId,device_id:S.deviceId,type:'charge'}).catch(()=>{})
+}
+
+// ── DÉCHARGER ─────────────────────────────────────────────────
+window.startDischarge = async function() {
+  if (S.mode==='discharging') { stopAll(); log('Décharge arrêtée','warn'); return }
+  if (S.bufferMB <= 0) {
+    showToast('Buffer vide — chargez d\'abord','error')
+    log('⚠ Buffer vide','error'); return
+  }
+  stopAll(); S.mode='discharging'
+  log('📡 Phase DÉCHARGE activée','success')
+  document.getElementById('netDot').className = 'net-dot offline'
+
+  const ok = await connectNetwork()
+  if (!ok) { S.dtnQueue++; updateUI() }
+
+  S.dischargeTimer = setInterval(async () => {
+    if (S.bufferMB <= 0) {
+      stopAll(); log('⚠ Buffer épuisé','error')
+      showToast('Buffer épuisé','error'); return
+    }
+    const usage = 15 + Math.random() * 50
+    S.bufferMB = Math.max(0, S.bufferMB-usage)
+    document.getElementById('netSpeed').textContent = usage.toFixed(0)+' MB/s'
+    updateUI()
+    if (Math.random() < 0.08) await syncDB()
+  }, 1000)
+
+  updateUI()
+  navigator.serviceWorker.controller?.postMessage({type:'SET_MODE',mode:'discharging'})
+}
+
+// ── STOP ──────────────────────────────────────────────────────
+function stopAll() {
+  clearInterval(S.chargeTimer); clearInterval(S.dischargeTimer)
+  S.mode='standby'; S.currentRelay=null
+  document.getElementById('netSpeed').textContent = '— MB/s'
+  document.getElementById('netDot').className = 'net-dot online'
+  document.getElementById('netLabel').textContent = 'WiFi'
+  syncDB(); updateUI()
+  navigator.serviceWorker.controller?.postMessage({type:'SET_MODE',mode:'standby'})
+}
+
+// ── HOTSPOT ───────────────────────────────────────────────────
+window.toggleHotspot = async function() {
+  S.hotspot = !S.hotspot
+  const btn = document.getElementById('btnHotspot')
+  const lbl = document.getElementById('hotspotLabel')
+  if (S.hotspot) {
+    btn.classList.add('active')
+    lbl.textContent = 'PARTAGE ACTIF — CLIQUER POUR ARRÊTER'
+    log('📶 Connexion partagée dans le réseau coopératif','success')
+    showToast('Connexion partagée','success')
+    await registerNode()
+  } else {
+    btn.classList.remove('active')
+    lbl.textContent = 'PARTAGER MA CONNEXION'
+    log('Partage arrêté','warn')
+  }
+  await syncDB()
+}
+
+// ── RÉSEAU ────────────────────────────────────────────────────
+window.addEventListener('online', async () => {
+  document.getElementById('netDot').className = 'net-dot online'
+  document.getElementById('netLabel').textContent = 'WiFi'
+  log('✅ WiFi détecté — fenêtre de communication ouverte !','success')
+  showToast('WiFi reconnecté','success')
+  if (S.userId) {
+    S.dtnQueue = 0
+    await registerNode()
+    if (S.mode==='discharging') await connectNetwork()
+    updateUI()
+  }
+})
+
+window.addEventListener('offline', () => {
+  if (S.mode==='charging') {
+    stopAll(); log('WiFi perdu — charge interrompue','error')
+    showToast('WiFi perdu','error')
+  } else {
+    log('📵 Hors ligne — DÉCHARGER pour utiliser le buffer','warn')
+  }
+})
+
+// ── SESSION ───────────────────────────────────────────────────
+supabase.auth.getSession().then(({data:{session}}) => {
+  if (session) initUser(session.user)
+})
+</script>
+</body>
+</html>
