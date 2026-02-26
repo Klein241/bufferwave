@@ -1,0 +1,46 @@
+name: bufferwave_app_pro
+description: BufferWave - Réseau Coopératif DTN
+publish_to: 'none'
+version: 4.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Backend
+  supabase_flutter: ^2.12.0
+  web_socket_channel: ^3.0.3
+  http: ^1.6.0
+  
+  # UI
+  flutter_svg: ^2.0.0
+  shimmer: ^3.0.0
+  lottie: ^3.0.0
+  
+  # Fonctionnalités
+  connectivity_plus: ^5.0.2
+  shared_preferences: ^2.5.4
+  geolocator: ^14.0.2
+  permission_handler: ^11.0.0
+  
+  # Publicité
+  google_mobile_ads: ^7.0.0
+  cryptography: ^2.9.0
+  flutter_secure_storage: ^10.0.0
+  fl_chart: ^1.1.1
+  share_plus: ^12.0.1
+  purchases_flutter: ^9.12.3
+  pointycastle: ^4.0.0
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
